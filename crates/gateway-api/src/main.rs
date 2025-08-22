@@ -7,10 +7,11 @@ use serde::{Deserialize, Serialize};
 use tracing::{info, Level};
 use tracing_subscriber::EnvFilter;
 
-use common::{Connector, Currency, Amount, Address, TxId, Result as GwResult, GatewayError};
+// NEW: bring in TcpListener and use axum::serve (Axum 0.7 style)
+use tokio::net::TcpListener;
 
-// Bring in the mock connector by default.
-// Later, replace with feature flags to pick real chain connectors.
+use common::{Connector, Currency, Amount, Address, TxId};
+
 use connector_mock as mock;
 
 #[derive(Clone)]
@@ -43,9 +44,11 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or(8080);
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     info!("🚀 gateway-api listening on {}", addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await?;
+
+    // Axum 0.7-compatible server bootstrap:
+    let listener = TcpListener::bind(addr).await?;
+    axum::serve(listener, app).await?;
+
     Ok(())
 }
 
@@ -83,6 +86,7 @@ async fn quote(
     Json(req): Json<QuoteReq>,
 ) -> axum::Json<QuoteRes> {
     let input = Amount { value: req.amount, currency: req.currency };
+    // mock connector never errors here; if you plug real ones, handle Result properly
     let fee = state.connector.quote_payment(input).unwrap_or(0.0);
     let total = req.amount + fee;
     Json(QuoteRes { currency: req.currency, amount: req.amount, fee_estimate: fee, total })
