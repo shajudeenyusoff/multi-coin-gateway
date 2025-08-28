@@ -1,8 +1,13 @@
 use async_trait::async_trait;
 use common::{Connector, Currency, Amount, Address, TxId, TxStatus, GatewayError};
+use uuid::Uuid;
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct MockConnector { pub cur: Currency }
+
+impl MockConnector {
+    pub fn new(cur: Currency) -> Self { Self { cur } }
+}
 
 #[async_trait]
 impl Connector for MockConnector {
@@ -13,12 +18,12 @@ impl Connector for MockConnector {
     }
 
     async fn new_deposit_address(&self) -> Result<Address, GatewayError> {
-        Ok(Address { address: format!("mock_{}", uuid::Uuid::new_v4()), currency: self.cur })
+        Ok(Address { address: format!("mock_{}", Uuid::new_v4()), currency: self.cur })
     }
 
-    async fn create_payment_request(&self, amount: Amount) -> Result<(Address, String), GatewayError> {
+    async fn create_payment_request(&self, _amount: Amount) -> Result<(Address, String), GatewayError> {
         let addr = self.new_deposit_address().await?;
-        Ok((addr, uuid::Uuid::new_v4().to_string()))
+        Ok((addr, Uuid::new_v4().to_string()))
     }
 
     async fn tx_status(&self, _tx: &TxId) -> Result<TxStatus, GatewayError> {
@@ -31,6 +36,6 @@ impl Connector for MockConnector {
 
     async fn send(&self, _from: &str, _to: &Address, amount: Amount) -> Result<TxId, GatewayError> {
         if amount.value <= 0.0 { return Err(GatewayError::Unknown("amount must be > 0".into())); }
-        Ok(TxId(uuid::Uuid::new_v4().to_string()))
+        Ok(TxId(Uuid::new_v4().to_string()))
     }
 }

@@ -1,4 +1,8 @@
-# crates/gateway-core/Cargo.toml
+[package]
+name = "gateway-core"
+version = "0.1.0"
+edition = "2021"
+
 [dependencies]
 common = { path = "../common" }
 parking_lot = "0.12"

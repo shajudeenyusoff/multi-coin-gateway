@@ -1,5 +1,14 @@
+# Rust
 /target
-**/*.rs.bk
 Cargo.lock
+
+# Local env & editor
 .env
+.idea
+.vscode
 .DS_Store
+
+# Node/Status frontends (if any)
+/node_modules
+dist
+build
