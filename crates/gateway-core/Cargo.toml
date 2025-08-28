@@ -1,0 +1,4 @@
+# crates/gateway-core/Cargo.toml
+[dependencies]
+common = { path = "../common" }
+parking_lot = "0.12"

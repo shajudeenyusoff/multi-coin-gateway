@@ -1,62 +1,51 @@
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
-pub enum Currency {
-    BTC,
-    ETH,
-    SOL,
-    SUI,
-    XRP,
-}
+pub enum Currency { BTC, ETH, SOL, SUI, XRP }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Amount {
-    pub value: f64,
-    pub currency: Currency,
-}
+pub struct Amount { pub value: f64, pub currency: Currency }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Address {
-    pub address: String,
-    pub currency: Currency,
-}
+pub struct Address { pub address: String, pub currency: Currency }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TxId(pub String);
 
 #[derive(Debug, Error)]
 pub enum GatewayError {
-    #[error("unsupported currency: {0:?}")]
-    UnsupportedCurrency(Currency),
-    #[error("connector not available")]
-    ConnectorUnavailable,
-    #[error("invalid amount")]
-    InvalidAmount,
-    #[error("internal error: {0}")]
-    Internal(String),
+    #[error("invalid address: {0}")] InvalidAddress(String),
+    #[error("network error: {0}")]  Network(String),
+    #[error("not implemented")]     NotImplemented,
+    #[error("unknown: {0}")]        Unknown(String),
 }
 
-pub type Result<T> = std::result::Result<T, GatewayError>;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TxStatus { Pending, Confirmed(u32), Failed(String) }
 
-/// A minimal set of operations the gateway needs from each chain connector.
-#[allow(unused_variables)]
-pub trait Connector: Send + Sync + 'static {
-    fn name(&self) -> &'static str;
+/// Logical client identifier (e.g., merchant account id)
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ClientId(pub String);
 
-    /// Generate a new receiving address (or payment request) for the given currency.
-    fn generate_address(&self, currency: Currency) -> Result<Address>;
-
-    /// Quote a payment (e.g., fee estimate, final total). This is intentionally simple.
-    fn quote_payment(&self, amount: Amount) -> Result<f64>;
-
-    /// Broadcast a signed transaction (string here for portability).
-    fn broadcast_tx(&self, currency: Currency, signed_tx: &str) -> Result<TxId>;
+/// What fee was applied
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppliedFee {
+    /// decimal fraction (e.g., 0.005 for 0.5%)
+    pub percent: f64,
+    /// fee amount in the transaction currency
+    pub fee_amount: f64,
 }
 
-/// Utility to create a pseudo-unique demo address or tx id.
-pub fn demo_id(prefix: &str) -> String {
-    format!("{}-{}", prefix, Uuid::new_v4().as_simple())
+#[async_trait]
+pub trait Connector: Send + Sync {
+    fn currency(&self) -> Currency;
+    async fn validate_address(&self, addr: &str) -> Result<bool, GatewayError>;
+    async fn new_deposit_address(&self) -> Result<Address, GatewayError>;
+    async fn create_payment_request(&self, amount: Amount) -> Result<(Address, String), GatewayError>; // (address, invoice_id)
+    async fn tx_status(&self, tx: &TxId) -> Result<TxStatus, GatewayError>;
+    async fn balance(&self, addr: &Address) -> Result<Amount, GatewayError>;
+    async fn send(&self, from: &str, to: &Address, amount: Amount) -> Result<TxId, GatewayError>;
 }

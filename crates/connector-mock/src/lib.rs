@@ -1,39 +1,36 @@
-use common::{Address, Amount, Connector, Currency, Result, TxId, demo_id, GatewayError};
+use async_trait::async_trait;
+use common::{Connector, Currency, Amount, Address, TxId, TxStatus, GatewayError};
 
-#[derive(Debug, Default)]
-pub struct MockConnector;
+#[derive(Clone, Default)]
+pub struct MockConnector { pub cur: Currency }
 
+#[async_trait]
 impl Connector for MockConnector {
-    fn name(&self) -> &'static str {
-        "mock"
+    fn currency(&self) -> Currency { self.cur }
+
+    async fn validate_address(&self, addr: &str) -> Result<bool, GatewayError> {
+        Ok(addr.starts_with("mock_"))
     }
 
-    fn generate_address(&self, currency: Currency) -> Result<Address> {
-        Ok(Address {
-            address: demo_id(match currency {
-                Currency::BTC => "btc",
-                Currency::ETH => "eth",
-                Currency::SOL => "sol",
-                Currency::SUI => "sui",
-                Currency::XRP => "xrp",
-            }),
-            currency,
-        })
+    async fn new_deposit_address(&self) -> Result<Address, GatewayError> {
+        Ok(Address { address: format!("mock_{}", uuid::Uuid::new_v4()), currency: self.cur })
     }
 
-    fn quote_payment(&self, amount: Amount) -> Result<f64> {
-        if amount.value <= 0.0 {
-            return Err(GatewayError::InvalidAmount);
-        }
-        // Demo "fee": 0.2% + flat 0.0001
-        Ok(amount.value * 0.002 + 0.0001)
+    async fn create_payment_request(&self, amount: Amount) -> Result<(Address, String), GatewayError> {
+        let addr = self.new_deposit_address().await?;
+        Ok((addr, uuid::Uuid::new_v4().to_string()))
     }
 
-    fn broadcast_tx(&self, _currency: Currency, _signed_tx: &str) -> Result<TxId> {
-        Ok(TxId(demo_id("tx")))
+    async fn tx_status(&self, _tx: &TxId) -> Result<TxStatus, GatewayError> {
+        Ok(TxStatus::Confirmed(1))
     }
-}
 
-pub fn build() -> MockConnector {
-    MockConnector::default()
+    async fn balance(&self, addr: &Address) -> Result<Amount, GatewayError> {
+        Ok(Amount { value: if addr.address.contains("zero") { 0.0 } else { 1.2345 }, currency: self.cur })
+    }
+
+    async fn send(&self, _from: &str, _to: &Address, amount: Amount) -> Result<TxId, GatewayError> {
+        if amount.value <= 0.0 { return Err(GatewayError::Unknown("amount must be > 0".into())); }
+        Ok(TxId(uuid::Uuid::new_v4().to_string()))
+    }
 }
