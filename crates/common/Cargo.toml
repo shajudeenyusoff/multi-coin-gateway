@@ -7,3 +7,4 @@ edition = "2021"
 serde = { version = "1", features = ["derive"] }
 thiserror = "1"
 async-trait = "0.1"
+utoipa = "5.4.0"
